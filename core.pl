@@ -19,9 +19,9 @@ sub main ()
 {
 	my %configure =	(
 				proxyhost		=>	'localhost',				# ProxyHost default 127.0.0.1
-				proxyport		=>	'5555',						# ProxyPort default 5555
-				targetaddr		=>	'insomnia.pirc.pl',			# TargetHost
-				targetport		=>	'6665',						# TargetPort
+				proxyport		=>	'80',						# ProxyPort default 5555
+				targetaddr		=>	'lol.pl',					# TargetHost
+				targetport		=>	'80',						# TargetPort
 				range			=>	'20000000', 				# Range sockets randomness, more for huge group connections
 				rand1			=>	'',							# Don't touch
 				rand2			=>	'',							# Don't touch
