@@ -19,8 +19,8 @@ sub main ()
 {
 	my %configure =	(
 				proxyhost		=>	'localhost',				# ProxyHost default 127.0.0.1
-				proxyport		=>	'80',						# ProxyPort default 5555
-				targetaddr		=>	'lol.pl',					# TargetHost
+				proxyport		=>	'80',						# ProxyPort default 80
+				targetaddr		=>	'onet.pl',					# TargetHost
 				targetport		=>	'80',						# TargetPort
 				range			=>	'20000000', 				# Range sockets randomness, more for huge group connections
 				rand1			=>	'',							# Don't touch
@@ -32,7 +32,7 @@ sub main ()
 				modify			=>	0,							# Don't touch
 				lineserver		=>	'',
 				lineclient		=>	'',
-				proxyver		=>	'20200124',					# Ragnarok version
+				proxyver		=>	'20200504',					# Ragnarok version
 	);
 
 	my $server;
@@ -140,7 +140,7 @@ sub mainloop
 						elsif ($configure->{socks}->{$socket} eq 'server')
 						{
 							$configure->{lineserver}	= $_ . "\n";
-							raw::fromonet($configure, \$client{$socket}, \$socket);	
+							raw::fromserver($configure, \$client{$socket}, \$socket);	
 						}						
 					}
 				}
