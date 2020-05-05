@@ -15,10 +15,9 @@ sub socksend
 	{
 		if ($$socket)
 		{
-			@temp = split(/\s/, $bufor);	#clean bufor end space
 			if ($configure->{alive}->{$$socket})
 			{
-				send($$socket, "".join(" ", @temp)."\r\n", 0) || die "Send : ".$!."\r\n";
+				send($$socket, "".$bufor."", 0) || die "Send : ".$!."\r\n";
 			}
 		}
 	};
