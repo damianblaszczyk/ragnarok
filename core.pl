@@ -11,28 +11,26 @@ use raw;
 
 BEGIN 
 {
-	$| = 1;														# Autoflush for console
-	open( STDERR, '>>', "errors.log" );							# Errors in file errors.log
+	$| = 1;
 }
 
 sub main ()
 {
 	my %configure =	(
-				proxyhost		=>	'localhost',				# ProxyHost default 127.0.0.1
-				proxyport		=>	'80',						# ProxyPort default 80
-				targetaddr		=>	'onet.pl',					# TargetHost
-				targetport		=>	'80',						# TargetPort
+				proxyhost		=>	'localhost',
+				proxyport		=>	'4444',
+				targetaddr		=>	'chat.freenode.net',
+				targetport		=>	'6697',
 				range			=>	'20000000', 				# Range sockets randomness, more for huge group connections
 				rand1			=>	'',							# Don't touch
 				rand2			=>	'',							# Don't touch
-				protocol		=>	'tcp',						# Protocol
+				protocol		=>	'tcp',
 				select			=>	'',							# Don't touch
 				socktimeout		=>	'1',						# Timeout for can_read()
 				lastcheck		=>	time(),						# Don't touch
 				modify			=>	0,							# Don't touch
 				lineserver		=>	'',
 				lineclient		=>	'',
-				proxyver		=>	'20200504',					# Ragnarok version
 	);
 
 	my $server;
