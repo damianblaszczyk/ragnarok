@@ -57,7 +57,6 @@ sub Usage
 #
 # Bind Server, Add server socket to IO::Select
 # Autoflushing Server Socket
-# Default 0.0.0.0:4444
 #
 sub BindServer
 {
