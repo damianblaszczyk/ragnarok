@@ -1,164 +1,218 @@
 #!/usr/bin/perl
-use IO::Select;
-use IO::Handle;
 use warnings;
 use strict;
-use Socket;
 
-use lib ".";
-use socks;
-use raw;
+use Carp;
+use IO::Select;
+use IO::Socket::INET;
+use IO::Socket::SSL;
+use feature 'say';
 
-BEGIN 
+use Getopt::Long;
+
+#
+# Main subortine
+#
+sub Start
 {
-	$| = 1;
-}
+	my $configure;
 
-sub main ()
-{
-	my %configure =	(
-				proxyhost		=>	'localhost',
-				proxyport		=>	'4444',
-				targetaddr		=>	'chat.freenode.net',
-				targetport		=>	'6697',
-				range			=>	'20000000', 				# Range sockets randomness, more for huge group connections
-				rand1			=>	'',							# Don't touch
-				rand2			=>	'',							# Don't touch
-				protocol		=>	'tcp',
-				select			=>	'',							# Don't touch
-				socktimeout		=>	'1',						# Timeout for can_read()
-				lastcheck		=>	time(),						# Don't touch
-				modify			=>	0,							# Don't touch
-				lineserver		=>	'',
-				lineclient		=>	'',
-	);
+	GetOptions 
+	(
+		"localhost=s"	=> \$configure->{LocalHost},
+ 		"localport=i"	=> \$configure->{LocalPort},
+ 		"remotehost=s"	=> \$configure->{RemoteHost},
+ 		"remoteport=i"	=> \$configure->{RemotePort},
+ 		"ssl=i" 		=> \$configure->{SSL},
+ 	),
+	or Usage();
 
-	my $server;
-	my $select = IO::Select->new();
-
-	$configure{select} = \$select;
-	bindserver(\$server, \%configure);
-	$select->add($server);
-	srand(time());
-
-	while (1)
+	if 
+	(
+		(not defined $configure->{LocalHost}) ||
+		(not defined $configure->{LocalPort}) ||
+		(not defined $configure->{RemoteHost}) ||
+		(not defined $configure->{RemotePort})
+	)
 	{
-		sleep 1;
-		eval
-		{
-			mainloop(\%configure, $server, $select);
-		};
-		print $@ if $@;
+		Usage();
 	}
-	close($server);
+
+	BindServer( $configure );
+	MainLoop( $configure );
+
 	return 0;
 }
 
-sub mainloop 
+#
+# Usage subortine
+#
+sub Usage
 {
-	my $configure 	= shift(@_);
-	my $server		= shift(@_);
-	my $select		= shift(@_);
+	say "Usage: $0 --localhost=%s --localport=%d --remotehost=%s --remoteport=%d";
+	say "If You need SSL connection use additional param --ssl=1";
+	exit 1;
+}
 
-	my %temp;
-	my %targetserver;
-	my %client;
+#
+# Bind Server, Add server socket to IO::Select
+# Autoflushing Server Socket
+# Default 0.0.0.0:4444
+#
+sub BindServer
+{
+	my $configure 	= shift( @_ );
+
+	$configure->{ioselect} = IO::Select->new();
+
+	$configure->{server} = IO::Socket::INET->new
+	(
+		LocalHost 	=>	$configure->{LocalHost},
+		LocalPort 	=>  $configure->{LocalPort},
+		Proto 		=>	'TCP',
+		Listen 		=>	SOMAXCONN,
+		ReuseAddr 	=>  1,
+		Timeout 	=>	10,
+	) or croak "Cannot create socket $!";
+
+	$configure->{server}->autoflush( 1 );
+	$configure->{ioselect}->add( $configure->{server} );
+
+	return 0;
+}
+
+#
+# Delete sockets in array IO::Select
+#
+sub DisconnectClient
+{
+	my $configure	= shift( @_ );
+	my $brother		= shift( @_ );		
+	my $client		= shift( @_ );
+	my $server 		= shift( @_ );
+
+	$configure->{ioselect}->remove( $client );
+	$configure->{ioselect}->remove( $server );
+
+	$client->close;
+	$server->close;
+
+	delete $brother->{$client};
+	delete $brother->{$server};
+
+	return 0;
+}
+
+#
+# New client
+#
+sub NewClient
+{
+	my $configure	= shift( @_ );
+	my $brother 	= shift( @_ );
+	my $type 		= shift( @_ );
+
+	my $client;
+	my $target;
+
+	eval 
+	{
+		if ($configure->{SSL})
+		{
+			$target = IO::Socket::SSL->new
+			(
+				$configure->{RemoteHost}.":".$configure->{RemotePort}
+			);
+		}
+		else
+		{
+			$target = IO::Socket::INET->new
+			(
+					PeerAddr 	=> $configure->{RemoteHost},
+					PeerPort 	=> $configure->{RemotePort},
+					Proto 		=>	'TCP',
+			);		
+		}
+		
+		$client = $configure->{server}->accept();
+
+		$brother->{$client} = $target;
+		$brother->{$target} = $client;
+
+		$type->{$client} = 'client';
+		$type->{$target} = 'remote';
+
+		$client->autoflush( 1 );
+		$target->autoflush( 1 );
+
+		$configure->{ioselect}->add( $client );
+		$configure->{ioselect}->add( $target );
+	};
+	if ( $@ ) 
+	{
+		carp "Problem with client $!";
+	}
+
+	return 0;
+}
+
+#
+# Subortine to modify RAW if You need
+#
+sub ModifyRaw
+{
+	my $socket 		= shift( @_ );
+	my $type 		= shift( @_ );
+	my $configure 	= shift( @_ ); 
+
+	if ($type->{$socket} eq 'client')
+	{
+		# Modify data from client
+		# $configure->{bufor}->{$socket}
+	}
+	else
+	{
+		# Modify data from remote
+		# $configure->{bufor}->{$socket}
+	}
+
+	return 0;
+}
+
+#
+# MainLoop
+#
+sub MainLoop 
+{
+	my $configure 	= shift( @_ );
+
 	my @temp;
-	my @list;
+
 	my $socket;
+	my $brother = {};
+	my $type 	= {};
 
-	while (1)
-	{		
-		if ((time() - $configure->{lastcheck}) > 60)
+	for (;;)
+	{
+		foreach $socket ( $configure->{ioselect}->can_read() ) 
 		{
-			checktimeout($select, $configure);
-			@list = $select->handles();
-			shift(@list);
-			$configure->{lastcheck} = time();
-		}
-		if ($configure->{modify})
-		{
-			checkalive($select, $configure);
-		}
-		foreach $socket ($select->can_read($configure->{socktimeout})) 
-		{
-			if ($socket == $server)
+			if ( $socket == $configure->{server} )
 			{
-				# [CLIENT CONNECTION]
-				$configure->{rand1} = int(rand($configure->{range}));
-				accept($temp{$configure->{rand1}}, $server);
-
-				# [TARGETSERVER CONNECTION]
-				$configure->{rand2} = int(rand($configure->{range}));
-				socket($temp{$configure->{rand2}}, AF_INET, SOCK_STREAM, getprotobyname($configure->{protocol}));
-				connect($temp{$configure->{rand2}}, sockaddr_in($configure->{targetport}, inet_aton($configure->{targetaddr})));
-
-				# [CREATE DATA IN HASH]
-				$configure->{alive}->{$temp{$configure->{rand1}}} = 1;
-				$configure->{alive}->{$temp{$configure->{rand2}}} = 1;
-				$configure->{socks}->{$temp{$configure->{rand1}}} = 'client';
-				$configure->{socks}->{$temp{$configure->{rand2}}} = 'server';
-				$temp{$configure->{rand1}}->autoflush(1);
-				$temp{$configure->{rand2}}->autoflush(1);
-				$select->add($temp{$configure->{rand1}});
-				$select->add($temp{$configure->{rand2}});
-				$targetserver{$temp{$configure->{rand1}}} = $temp{$configure->{rand2}};
-				$client{$temp{$configure->{rand2}}} = $temp{$configure->{rand1}};
+				NewClient( $configure, $brother, $type );
 			}	
 			else
 			{
-				socks::sockrecv(\$socket, \$configure->{bufor}->{$socket}, $configure);
-				if ($configure->{bufor}->{$socket} && length($configure->{bufor}->{$socket}) > 0)
+				$socket->sysread( $configure->{bufor}->{$socket}, 8192 );
+				if ( $configure->{bufor}->{$socket} )
 				{
-					if ($configure->{rest}->{$socket})
-					{
-						$configure->{bufor}->{$socket} = $configure->{rest}->{$socket} . $configure->{bufor}->{$socket};
-					}
-					if ((substr $configure->{bufor}->{$socket}, (length($configure->{bufor}->{$socket})-1)) ne "\n")
-        	                        {
-						@temp = split("\n", $configure->{bufor}->{$socket});
-						$configure->{rest}->{$socket} = $temp[$#temp];
-                	                }
-                	                else
-                        	        {
-                                		$configure->{rest}->{$socket} = undef;
-                                        }
-					@temp = split("\n", $configure->{bufor}->{$socket});
-					if ((substr $configure->{bufor}->{$socket}, (length($configure->{bufor}->{$socket})-1)) ne "\n")
-					{
-						pop(@temp);
-					}
-					foreach (@temp)
-					{
-						if ($configure->{socks}->{$socket} eq 'client')
-						{
-							$configure->{lineclient} = $_ . "\n";
-							raw::fromclient($configure, \$targetserver{$socket}, \$socket);
-						}
-						elsif ($configure->{socks}->{$socket} eq 'server')
-						{
-							$configure->{lineserver}	= $_ . "\n";
-							raw::fromserver($configure, \$client{$socket}, \$socket);	
-						}						
-					}
+					ModifyRaw( $socket, $type, $configure );
+					$brother->{$socket}->syswrite( $configure->{bufor}->{$socket}, 8192 );
 				}
 				else
 				{
-					if ($configure->{socks}->{$socket} eq 'client')
-					{				
-						delete $client{$targetserver{$socket}};
-						delete $targetserver{$socket};
-					}
-
-					elsif ($configure->{socks}->{$socket} eq 'server')
-					{
-						delete $targetserver{$client{$socket}};
-						delete $client{$socket};
-					}
-
-					$configure->{alive}->{$socket} = 0;	
-					$configure->{modify} = 1;			
-					next;
+					# Problem with socket or socket closed
+					# Remove socket and socket brother from array
+					DisconnectClient( $configure, $brother, $socket, $brother->{$socket} );
 				}
 			}
 		}	
@@ -166,75 +220,4 @@ sub mainloop
 	return 0;
 }
 
-sub bindserver
-{
-	my $server			= shift(@_);
-	my $configure		= shift(@_);
-
-	$configure->{proxyport} = $ARGV[0] if ($ARGV[0]);
-	socket($$server, AF_INET, SOCK_STREAM, getprotobyname($configure->{protocol})) || die "socket: ".$!."\r\n";
-	setsockopt($$server, SOL_SOCKET, SO_REUSEADDR, 1);
-	bind($$server, sockaddr_in($configure->{proxyport}, inet_aton($configure->{proxyhost}))) || die "bind: ".$!."\r\n";
-	listen($$server, SOMAXCONN) || die "listen: ".$!."\r\n";
-	$$server->autoflush(1);	
-	return 0;
-}
-
-sub checkalive
-{
-	my $select		= shift(@_);
-	my $configure	= shift(@_);
-	my @temp;
-
-	@temp = $select->handles();
-	shift(@temp);
-	foreach (@temp)
-	{
-		unless($configure->{alive}->{$_})
-		{
-			$select->remove($_);
-			close($_);
-			delete $configure->{rest}->{$_};
-			delete $configure->{socks}->{$_};
-			delete $configure->{conf}->{$_};
-			delete $configure->{bufor}->{$_};
-			delete $configure->{alive}->{$_};
-			delete $configure->{timeout}->{$_};
-		}
-	}
-	$configure->{modify} = 0;
-	return 0;
-}
-
-sub checktimeout
-{
-	my $select		= shift(@_);
-	my $configure	= shift(@_);
-	my @temp;
-
-	@temp = $select->handles();
-	shift(@temp);
-	foreach (@temp)
-	{
-		if ($configure->{timeout}->{$_})
-		{
-			if ((time() - $configure->{timeout}->{$_}) > 150)
-			{
-				$configure->{alive}->{$_} = 0;
-				$configure->{modify} = 1;	
-			}
-		}
-	}
-	return 0;
-}
-
-while (1)
-{
-	eval
-	{
-		main();
-	};
-	print $@ if $@;	
-}
-
-END{}
+Start();
