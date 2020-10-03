@@ -20,11 +20,11 @@ sub Start
 	GetOptions 
 	(
 		"localhost=s"	=> \$configure->{LocalHost},
- 		"localport=i"	=> \$configure->{LocalPort},
- 		"remotehost=s"	=> \$configure->{RemoteHost},
- 		"remoteport=i"	=> \$configure->{RemotePort},
- 		"ssl=i"			=> \$configure->{SSL},
- 	),
+		"localport=i"	=> \$configure->{LocalPort},
+		"remotehost=s"	=> \$configure->{RemoteHost},
+		"remoteport=i"	=> \$configure->{RemotePort},
+		"ssl=i"			=> \$configure->{SSL},
+	),
 	or Usage();
 
 	if 
