@@ -66,12 +66,12 @@ sub BindServer
 
 	$configure->{server} = IO::Socket::INET->new
 	(
-		LocalHost 	=>	$configure->{LocalHost},
-		LocalPort 	=>	$configure->{LocalPort},
-		Proto 		=>	'TCP',
-		Listen 		=>	SOMAXCONN,
-		ReuseAddr 	=>	1,
-		Timeout 	=>	10,
+		LocalHost 	=> $configure->{LocalHost},
+		LocalPort 	=> $configure->{LocalPort},
+		Proto 		=> 'TCP',
+		Listen 		=> SOMAXCONN,
+		ReuseAddr 	=> 1,
+		Timeout 	=> 10,
 	) or croak "Cannot create socket $!";
 
 	$configure->{server}->autoflush( 1 );
@@ -127,9 +127,9 @@ sub NewClient
 		{
 			$target = IO::Socket::INET->new
 			(
-					PeerAddr 	=> $configure->{RemoteHost},
-					PeerPort 	=> $configure->{RemotePort},
-					Proto 		=>	'TCP',
+				PeerAddr 	=> $configure->{RemoteHost},
+				PeerPort 	=> $configure->{RemotePort},
+				Proto 		=> 'TCP',
 			);		
 		}
 		
@@ -160,8 +160,8 @@ sub NewClient
 #
 sub ModifyRaw
 {
-	my $socket 		= shift( @_ );
-	my $type 		= shift( @_ );
+	my $socket 	= shift( @_ );
+	my $type 	= shift( @_ );
 	my $configure 	= shift( @_ ); 
 
 	if ($type->{$socket} eq 'client')
@@ -188,7 +188,7 @@ sub MainLoop
 	my @temp;
 
 	my $socket;
-	my $brother = {};
+	my $brother 	= {};
 	my $type 	= {};
 
 	for (;;)
