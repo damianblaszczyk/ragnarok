@@ -67,10 +67,10 @@ sub BindServer
 	$configure->{server} = IO::Socket::INET->new
 	(
 		LocalHost 	=>	$configure->{LocalHost},
-		LocalPort 	=>  $configure->{LocalPort},
+		LocalPort 	=>	$configure->{LocalPort},
 		Proto 		=>	'TCP',
 		Listen 		=>	SOMAXCONN,
-		ReuseAddr 	=>  1,
+		ReuseAddr 	=>	1,
 		Timeout 	=>	10,
 	) or croak "Cannot create socket $!";
 
@@ -86,9 +86,9 @@ sub BindServer
 sub DisconnectClient
 {
 	my $configure	= shift( @_ );
-	my $brother		= shift( @_ );		
-	my $client		= shift( @_ );
-	my $server 		= shift( @_ );
+	my $brother	= shift( @_ );		
+	my $client	= shift( @_ );
+	my $server 	= shift( @_ );
 
 	$configure->{ioselect}->remove( $client );
 	$configure->{ioselect}->remove( $server );
@@ -109,7 +109,7 @@ sub NewClient
 {
 	my $configure	= shift( @_ );
 	my $brother 	= shift( @_ );
-	my $type 		= shift( @_ );
+	my $type 	= shift( @_ );
 
 	my $client;
 	my $target;
